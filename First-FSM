@@ -1,3 +1,5 @@
+git clone path/to/repository
+
 #include <ME480FSM.h>
 
 // FSM Variables
