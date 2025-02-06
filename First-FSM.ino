@@ -1,0 +1,112 @@
+#include <ME480FSM.h>
+
+// FSM Variables
+bool WS = true; //Waiting State
+bool CS; //Crash detected state
+bool SenS; //Sensing state
+bool TWS; //Waiting to sensing transition
+bool TSW; //Sensing to waiting state
+bool TWW; //Waiting Latch
+bool TCW; //Crash to Waiting transition
+bool TCC; //Crash latch
+bool TSC; //Sensing to Latch transition
+bool TSS; //Sensing latch
+
+// Pins and Sensors and Timer
+const int first_outpin = 8;
+const int second_outpin = 9;
+const int third_outpin = 10;
+const int light_pin = 12;
+bool Sensor1;
+bool Sensor2;
+bool Sensor3;
+float vtime;
+float Seconds1;
+float Seconds2;
+bool veltime = false;
+
+// Sets up the timer
+FSMTimer Timer(30000);
+
+
+void setup() {
+  // put your setup code here, to run once:
+
+  Serial.begin(19200);
+  pinMode(light_pin,OUTPUT);
+
+
+}
+void loop() {
+  // put your main code here, to run repeatedly:
+  // initializes the sensors and their outpins
+  Sensor1 = digitalRead(first_outpin);
+  Sensor2 = digitalRead(second_outpin);
+  Sensor3 = digitalRead(third_outpin);
+  
+
+  // Timer Code
+  if (Sensor1) {
+    Seconds1 = (micros() / 1000.0);
+  }
+  if (Sensor2) {
+    Seconds2 = (micros() / 1000.0);
+  }
+  
+  // Conversion from Velocity into time between sensor 2 and 3
+  vtime = 100.0 / ((36.0) / (Seconds2 - Seconds1));
+  // vtime = (Dist. between gate 2-3 w facotr of safety)/(Dist. between gate 1-2)/(Time)
+
+  // Overwrites the timer so a crash can be detected
+  if (Timer.elapsed >= vtime) {
+    veltime = true;
+  }
+  else {
+    veltime = false;
+  }
+  Timer.update(SenS);
+
+  // Transition Code
+  TWW = WS && (!Sensor2);
+  TWS = WS && (Sensor2);
+  TSS = SenS && (!Sensor3 && !veltime);
+  TCC = CS;
+  TSC = SenS && (veltime);
+  TSW = SenS && ((Sensor3 && !veltime));
+
+
+  // States
+  WS = (TWW || TSW);
+  SenS = (TWS || TSS);
+  CS = (TSC || TCC);
+
+  // Output
+  Serial.print(Sensor1);
+  Serial.print("\t");
+  Serial.print(Sensor2);
+  Serial.print("\t");
+  Serial.print(Sensor3);
+  Serial.print("\t");
+  Serial.print(Seconds1);
+  Serial.print("\t");
+  Serial.print(Seconds2);
+  Serial.print("\t");
+  Serial.print("\t");
+  Serial.print(WS);
+  Serial.print("\t");
+  Serial.print(SenS);
+  Serial.print("\t");
+  Serial.print(CS);
+  Serial.print("\t");
+  Serial.print(Timer.elapsed);
+  Serial.println();
+  
+  // this else if statement turns the crash light on or off
+  if(CS){
+    digitalWrite(light_pin,HIGH);
+  }
+  else if(!CS){
+    digitalWrite(light_pin,LOW);
+  }
+}
+
