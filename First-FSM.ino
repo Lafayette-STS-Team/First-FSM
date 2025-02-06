@@ -91,6 +91,7 @@ void loop() {
   Serial.print("\t");
   Serial.print(Seconds2);
   Serial.print("\t");
+  Serial.print(vtime);
   Serial.print("\t");
   Serial.print(WS);
   Serial.print("\t");
@@ -110,3 +111,5 @@ void loop() {
   }
 }
 
+Does this clone work??????
+This is the second test!!!
