@@ -5,7 +5,7 @@ bool WS = true; //Waiting State
 bool CS; //Crash detected state
 bool SenS; //Sensing state
 bool TWS; //Waiting to sensing transition
-bool TSW; //Sensing to waiting state
+bool TSW; //Sensing to waiting transition
 bool TWW; //Waiting Latch
 bool TCW; //Crash to Waiting transition
 bool TCC; //Crash latch
