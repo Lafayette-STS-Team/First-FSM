@@ -1,0 +1,161 @@
+#include <ME480FSM.h>
+#include <esp_now.h>
+#include <WiFi.h>
+
+// REPLACE WITH THE MAC Address of your receiver
+uint8_t broadcastAddress[] = {0x8C, 0x4F, 0x00, 0x2E, 0xD5, 0x30};
+
+// FSM Variables
+bool WS = true; //Waiting State
+bool CS; //Crash detected state
+bool SenS; //Sensing state
+bool TWS; //Waiting to sensing transition
+bool TSW; //Sensing to waiting state
+bool TWW; //Waiting Latch
+bool TCW; //Crash to Waiting transition
+bool TCC; //Crash latch
+bool TSC; //Sensing to Latch transition
+bool TSS; //Sensing latch
+
+// Pins and Sensors and Timer
+const int first_outpin = 8;
+//const int second_outpin = 9; THIS IS FOR HARDWIRED SYSTEM
+//const int third_outpin = 10; THIS IS FOR HARDWIRED SYSTEM
+const int light_pin = 12;
+bool Sensor1;
+float Sensor2; // Recieved Data Wirelessly
+float Sensor3; // Recieved Data Wirelessly
+float vtime;
+float Seconds1;
+float Seconds2;
+bool veltime = false;
+
+// Sets up the timer
+FSMTimer Timer(30000);
+
+// Create a struct_message to hold incoming sensor readings
+typedef struct struct_message {
+  float Sen2;
+  float Sen3;
+} struct_message;
+
+// Create a struct_message to hold incoming sensor readings
+struct_message incomingReadings;
+
+// Callback when data is recieved
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  Sensor2 = incomingReadings.Sen2;
+  Sensor3 = incomingReadings.Sen3;
+}
+
+esp_now_peer_info_t peerInfo;
+
+void setup() {
+  // put your setup code here, to run once:
+
+  Serial.begin(115200);
+  pinMode(light_pin, OUTPUT);
+
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+//  esp_now_register_send_cb(OnDataSent); CHECK TO MAKE SURE THIS ISN'T NEEDED
+
+  // Register peer
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  // Add peer
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer");
+    return;
+  }
+  // Register for a callback function that will be called when data is received
+  esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+
+}
+void loop() {
+  // put your main code here, to run repeatedly:
+  // initializes the sensors and their outpins
+  Sensor1 = digitalRead(first_outpin);
+//  Sensor2 = digitalRead(second_outpin); THIS IS FOR HARDWIRED SYSTEM
+//  Sensor3 = digitalRead(third_outpin); THIS IS FOR HARDWIRED SYSTEM
+
+
+  // Timer Code
+  if (Sensor1) {
+    Seconds1 = (micros() / 1000.0);
+  }
+  if (Sensor2) {
+    Seconds2 = (micros() / 1000.0);
+  }
+
+  // Conversion from Velocity into time between sensor 2 and 3
+  vtime = 100.0 / ((36.0) / (Seconds2 - Seconds1));
+  // vtime = (Dist. between gate 2-3 w facotr of safety)/(Dist. between gate 1-2)/(Time)
+
+  // Overwrites the timer so a crash can be detected
+  if (Timer.elapsed >= vtime) {
+    veltime = true;
+  }
+  else {
+    veltime = false;
+  }
+  Timer.update(SenS);
+
+  // Transition Code
+  TWW = WS && (!Sensor2);
+  TWS = WS && (Sensor2);
+  TSS = SenS && (!Sensor3 && !veltime);
+  TCC = CS;
+  TSC = SenS && (veltime);
+  TSW = SenS && ((Sensor3 && !veltime));
+
+
+  // States
+  WS = (TWW || TSW);
+  SenS = (TWS || TSS);
+  CS = (TSC || TCC);
+
+  // Output
+  Serial.print(Sensor1);
+  Serial.print("\t");
+  Serial.print(Sensor2);
+  Serial.print("\t");
+  Serial.print(Sensor3);
+  Serial.print("\t");
+  Serial.print(Seconds1);
+  Serial.print("\t");
+  Serial.print(Seconds2);
+  Serial.print("\t");
+  Serial.print(vtime);
+  Serial.print("\t");
+  Serial.print(WS);
+  Serial.print("\t");
+  Serial.print(SenS);
+  Serial.print("\t");
+  Serial.print(CS);
+  Serial.print("\t");
+  Serial.print(Timer.elapsed);
+  Serial.println();
+
+  // this else if statement turns the crash light on or off
+  if (CS) {
+    digitalWrite(light_pin, HIGH);
+  }
+  else if (!CS) {
+    digitalWrite(light_pin, LOW);
+  }
+}
